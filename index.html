@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>English Text Memorizer</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 2rem;
+      background: #f9f9f9;
+    }
+    textarea, input[type="text"] {
+      width: 100%;
+      padding: 0.5rem;
+      font-size: 1.2rem;
+      margin-bottom: 1rem;
+    }
+    .hidden { display: none; }
+    .grey-text {
+      color: #aaa;
+      font-size: 1.2rem;
+      margin-bottom: 0.5rem;
+    }
+    button {
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      margin-right: 0.5rem;
+    }
+    .dashboard-item {
+      margin-bottom: 0.5rem;
+      cursor: pointer;
+      color: blue;
+      text-decoration: underline;
+    }
+    .error {
+      border-color: red;
+      background-color: #ffe6e6;
+    }
+    .progress {
+      margin-bottom: 1rem;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>English Text Memorizer</h1>
+
+  <div id="dashboard">
+    <h2>Saved Texts</h2>
+    <div id="savedList"></div>
+    <hr>
+  </div>
+
+  <div id="inputSection">
+    <h2>New Text</h2>
+    <input type="text" id="textTitle" placeholder="Enter a title for this text">
+    <input type="text" id="textTag" placeholder="Add a tag or category (optional)">
+    <textarea id="textInput" placeholder="Enter text to memorize (one line per part)..."></textarea>
+    <button onclick="startPractice()">Start Practice</button>
+  </div>
+
+  <div id="practiceSection" class="hidden">
+    <h2>Practice Typing</h2>
+    <div class="progress" id="progressBar"></div>
+    <div class="grey-text" id="linePrompt"></div>
+    <input type="text" id="userInput" onkeyup="checkLine(event)" />
+    <button onclick="skipLine()">Skip</button>
+  </div>
+
+  <script>
+    let currentLines = [];
+    let currentIndex = 0;
+    let currentTitle = '';
+    let currentTag = '';
+    const STORAGE_KEY = 'text_memorizer_data';
+
+    function startPractice() {
+      const text = document.getElementById('textInput').value.trim();
+      const title = document.getElementById('textTitle').value.trim();
+      const tag = document.getElementById('textTag').value.trim();
+      if (!text || !title) {
+        alert('Please enter both a title and some text.');
+        return;
+      }
+
+      currentTitle = title;
+      currentTag = tag;
+      currentLines = text.split('\n').map(line => ({
+        text: line,
+        attempts: 0,
+        nextReview: Date.now()
+      }));
+      saveText(currentTitle, currentLines, currentTag);
+      loadPractice(currentTitle);
+    }
+
+    function loadPractice(title) {
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+      currentTitle = title;
+      currentLines = stored[title].lines;
+      currentIndex = 0;
+      document.getElementById('inputSection').classList.add('hidden');
+      document.getElementById('practiceSection').classList.remove('hidden');
+      showLine();
+    }
+
+    function showLine() {
+      if (currentIndex >= currentLines.length) {
+        alert("You're done with this session!");
+        location.reload();
+        return;
+      }
+      document.getElementById('linePrompt').textContent = currentLines[currentIndex].text;
+      document.getElementById('userInput').value = '';
+      document.getElementById('userInput').classList.remove('error');
+      updateProgress();
+    }
+
+    function checkLine(e) {
+      const input = document.getElementById('userInput');
+      const expected = currentLines[currentIndex].text;
+      if (e.key === 'Enter') {
+        if (input.value === expected) {
+          currentLines[currentIndex].attempts++;
+          currentLines[currentIndex].nextReview = Date.now() + getInterval(currentLines[currentIndex].attempts);
+          currentIndex++;
+          showLine();
+        } else {
+          input.classList.add('error');
+        }
+      }
+    }
+
+    function getInterval(attempts) {
+      const days = [1, 2, 4, 7, 14];
+      return 1000 * 60 * 60 * 24 * (days[Math.min(attempts, days.length - 1)]);
+    }
+
+    function skipLine() {
+      currentIndex++;
+      showLine();
+    }
+
+    function saveText(title, lines, tag) {
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+      stored[title] = {
+        lines,
+        tag,
+        lastReviewed: new Date().toISOString()
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+      loadDashboard();
+    }
+
+    function loadDashboard() {
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+      const list = document.getElementById('savedList');
+      list.innerHTML = '';
+      for (let title in stored) {
+        const tagText = stored[title].tag ? ` [${stored[title].tag}]` : '';
+        const el = document.createElement('div');
+        el.textContent = `${title}${tagText}`;
+        el.className = 'dashboard-item';
+        el.onclick = () => loadPractice(title);
+        list.appendChild(el);
+      }
+    }
+
+    function updateProgress() {
+      const percent = Math.floor((currentIndex / currentLines.length) * 100);
+      document.getElementById('progressBar').textContent = `Progress: ${percent}% (${currentIndex}/${currentLines.length})`;
+    }
+
+    loadDashboard();
+  </script>
+
+</body>
+</html>
